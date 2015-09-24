@@ -43,10 +43,11 @@ __author__ = 'wan@google.com (Zhanyong Wan)'
 import gtest_test_utils
 import os
 import sys
-import unittest
 
 
 # Constants.
+
+IS_WINDOWS = os.name == 'nt'
 
 # The environment variable for enabling/disabling the break-on-failure mode.
 BREAK_ON_FAILURE_ENV_VAR = 'GTEST_BREAK_ON_FAILURE'
@@ -57,29 +58,29 @@ BREAK_ON_FAILURE_FLAG = 'gtest_break_on_failure'
 # The environment variable for enabling/disabling the throw-on-failure mode.
 THROW_ON_FAILURE_ENV_VAR = 'GTEST_THROW_ON_FAILURE'
 
+# The environment variable for enabling/disabling the catch-exceptions mode.
+CATCH_EXCEPTIONS_ENV_VAR = 'GTEST_CATCH_EXCEPTIONS'
+
 # Path to the gtest_break_on_failure_unittest_ program.
-EXE_PATH = os.path.join(gtest_test_utils.GetBuildDir(),
-                        'gtest_break_on_failure_unittest_')
+EXE_PATH = gtest_test_utils.GetTestExecutablePath(
+    'gtest_break_on_failure_unittest_')
 
 
-# Utilities.
+environ = gtest_test_utils.environ
+SetEnvVar = gtest_test_utils.SetEnvVar
 
-
-def SetEnvVar(env_var, value):
-  """Sets an environment variable to a given value; unsets it when the
-  given value is None.
-  """
-
-  if value is not None:
-    os.environ[env_var] = value
-  elif env_var in os.environ:
-    del os.environ[env_var]
+# Tests in this file run a Google-Test-based test program and expect it
+# to terminate prematurely.  Therefore they are incompatible with
+# the premature-exit-file protocol by design.  Unset the
+# premature-exit filepath to prevent Google Test from creating
+# the file.
+SetEnvVar(gtest_test_utils.PREMATURE_EXIT_FILE_ENV_VAR, None)
 
 
 def Run(command):
   """Runs a command; returns 1 if it was killed by a signal, or 0 otherwise."""
 
-  p = gtest_test_utils.Subprocess(command)
+  p = gtest_test_utils.Subprocess(command, env=environ)
   if p.terminated_by_signal:
     return 1
   else:
@@ -89,7 +90,7 @@ def Run(command):
 # The tests.
 
 
-class GTestBreakOnFailureUnitTest(unittest.TestCase):
+class GTestBreakOnFailureUnitTest(gtest_test_utils.TestCase):
   """Tests using the GTEST_BREAK_ON_FAILURE environment variable or
   the --gtest_break_on_failure flag to turn assertion failures into
   segmentation faults.
@@ -193,6 +194,19 @@ class GTestBreakOnFailureUnitTest(unittest.TestCase):
                         expect_seg_fault=1)
     finally:
       SetEnvVar(THROW_ON_FAILURE_ENV_VAR, None)
+
+  if IS_WINDOWS:
+    def testCatchExceptionsDoesNotInterfere(self):
+      """Tests that gtest_catch_exceptions doesn't interfere."""
+
+      SetEnvVar(CATCH_EXCEPTIONS_ENV_VAR, '1')
+      try:
+        self.RunAndVerify(env_var_value='1',
+                          flag_value='1',
+                          expect_seg_fault=1)
+      finally:
+        SetEnvVar(CATCH_EXCEPTIONS_ENV_VAR, None)
+
 
 if __name__ == '__main__':
   gtest_test_utils.Main()
