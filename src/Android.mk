@@ -23,25 +23,21 @@
 # it is running linux and using ASTL.
 #
 
-ifneq ($(TARGET_SIMULATOR),true)
-
 # TODO: The targets below have some redundancy. Check if we cannot
 # condense them using function(s) for the common code.
+
+ifeq ($(TARGET_SIMULATOR),true)
 
 LOCAL_PATH := $(call my-dir)
 
 ifeq ($(BUILD_WITH_ASTL),true)
 libgtest_includes:= \
-    bionic/libstdc++/include \
-    external/astl/include \
     $(LOCAL_PATH)/.. \
     $(LOCAL_PATH)/../include
 else
 # BUILD_WITH_ASTL could be undefined, force it to false.
 BUILD_WITH_ASTL := false
 libgtest_includes := \
-    bionic \
-    external/stlport/stlport \
     $(LOCAL_PATH)/.. \
     $(LOCAL_PATH)/../include
 endif
@@ -96,7 +92,16 @@ include $(CLEAR_VARS)
 
 LOCAL_CPP_EXTENSION := .cc
 
-LOCAL_SRC_FILES := gtest-all.cc
+LOCAL_SRC_FILES := \
+	gtest-all.cc \
+	gtest.cc \
+	gtest-death-test.cc \
+	gtest-filepath.cc \
+	gtest_main.cc \
+	gtest-port.cc \
+	gtest-test-part.cc \
+	gtest-typed-test.cc \
+
 
 LOCAL_C_INCLUDES := $(libgtest_includes)
 

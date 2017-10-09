@@ -272,10 +272,9 @@ void DeathTestAbort(const std::string& message) {
 # define GTEST_DEATH_TEST_CHECK_(expression) \
   do { \
     if (!::testing::internal::IsTrue(expression)) { \
-      DeathTestAbort( \
-          ::std::string("CHECK failed: File ") + __FILE__ +  ", line " \
-          + ::testing::internal::StreamableToString(__LINE__) + ": " \
-          + #expression); \
+      DeathTestAbort(::testing::internal::String::Format(       \
+          "CHECK failed: File %s, line %d: %s", \
+          __FILE__, __LINE__, #expression)); \
     } \
   } while (::testing::internal::AlwaysFalse())
 
@@ -293,10 +292,9 @@ void DeathTestAbort(const std::string& message) {
       gtest_retval = (expression); \
     } while (gtest_retval == -1 && errno == EINTR); \
     if (gtest_retval == -1) { \
-      DeathTestAbort( \
-          ::std::string("CHECK failed: File ") + __FILE__ + ", line " \
-          + ::testing::internal::StreamableToString(__LINE__) + ": " \
-          + #expression + " != -1"); \
+      DeathTestAbort(::testing::internal::String::Format(       \
+          "CHECK failed: File %s, line %d: %s != -1", \
+          __FILE__, __LINE__, #expression)); \
     } \
   } while (::testing::internal::AlwaysFalse())
 
@@ -718,14 +716,14 @@ DeathTest::TestRole WindowsDeathTest::AssumeRole() {
       info->test_case_name() + "." + info->name();
   const std::string internal_flag =
       std::string("--") + GTEST_FLAG_PREFIX_ + kInternalRunDeathTestFlag +
-      "=" + file_ + "|" + StreamableToString(line_) + "|" +
-      StreamableToString(death_test_index) + "|" +
-      StreamableToString(static_cast<unsigned int>(::GetCurrentProcessId())) +
-      // size_t has the same width as pointers on both 32-bit and 64-bit
+      "=" + file_ + "|" + String::Format("%d|%d|%u|%Iu|%Iu", line_,
+      death_test_index,
+      static_cast<unsigned int>(::GetCurrentProcessId()),
+      // size_t has the same with as pointers on both 32-bit and 64-bit
       // Windows platforms.
       // See http://msdn.microsoft.com/en-us/library/tcxf1dw6.aspx.
-      "|" + StreamableToString(reinterpret_cast<size_t>(write_handle)) +
-      "|" + StreamableToString(reinterpret_cast<size_t>(event_handle_.Get()));
+      reinterpret_cast<size_t>(write_handle),
+      reinterpret_cast<size_t>(event_handle_.Get()));
 
   char executable_path[_MAX_PATH + 1];  // NOLINT
   GTEST_DEATH_TEST_CHECK_(
@@ -1116,13 +1114,13 @@ DeathTest::TestRole ExecDeathTest::AssumeRole() {
   GTEST_DEATH_TEST_CHECK_(fcntl(pipe_fd[1], F_SETFD, 0) != -1);
 
   const std::string filter_flag =
-      std::string("--") + GTEST_FLAG_PREFIX_ + kFilterFlag + "="
-      + info->test_case_name() + "." + info->name();
+      String::Format("--%s%s=%s.%s",
+                     GTEST_FLAG_PREFIX_, kFilterFlag,
+                     info->test_case_name(), info->name());
   const std::string internal_flag =
-      std::string("--") + GTEST_FLAG_PREFIX_ + kInternalRunDeathTestFlag + "="
-      + file_ + "|" + StreamableToString(line_) + "|"
-      + StreamableToString(death_test_index) + "|"
-      + StreamableToString(pipe_fd[1]);
+      String::Format("--%s%s=%s|%d|%d|%d",
+                     GTEST_FLAG_PREFIX_, kInternalRunDeathTestFlag,
+                     file_, line_, death_test_index, pipe_fd[1]);
   Arguments args;
   args.AddArguments(GetArgvsForDeathTestChildProcess());
   args.AddArgument(filter_flag.c_str());
@@ -1161,10 +1159,9 @@ bool DefaultDeathTestFactory::Create(const char* statement, const RE* regex,
 
   if (flag != NULL) {
     if (death_test_index > flag->index()) {
-      DeathTest::set_last_death_test_message(
-          "Death test count (" + StreamableToString(death_test_index)
-          + ") somehow exceeded expected maximum ("
-          + StreamableToString(flag->index()) + ")");
+      DeathTest::set_last_death_test_message(String::Format(
+          "Death test count (%d) somehow exceeded expected maximum (%d)",
+          death_test_index, flag->index()));
       return false;
     }
 
@@ -1193,9 +1190,9 @@ bool DefaultDeathTestFactory::Create(const char* statement, const RE* regex,
 # endif  // GTEST_OS_WINDOWS
 
   else {  // NOLINT - this is more readable than unbalanced brackets inside #if.
-    DeathTest::set_last_death_test_message(
-        "Unknown death test style \"" + GTEST_FLAG(death_test_style)
-        + "\" encountered");
+    DeathTest::set_last_death_test_message(String::Format(
+        "Unknown death test style \"%s\" encountered",
+        GTEST_FLAG(death_test_style).c_str()));
     return false;
   }
 
@@ -1233,8 +1230,8 @@ int GetStatusFileDescriptor(unsigned int parent_process_id,
                                                    FALSE,  // Non-inheritable.
                                                    parent_process_id));
   if (parent_process_handle.Get() == INVALID_HANDLE_VALUE) {
-    DeathTestAbort("Unable to open parent process " +
-                   StreamableToString(parent_process_id));
+    DeathTestAbort(String::Format("Unable to open parent process %u",
+                                  parent_process_id));
   }
 
   // TODO(vladl@google.com): Replace the following check with a
@@ -1254,10 +1251,9 @@ int GetStatusFileDescriptor(unsigned int parent_process_id,
                                  // DUPLICATE_SAME_ACCESS is used.
                          FALSE,  // Request non-inheritable handler.
                          DUPLICATE_SAME_ACCESS)) {
-    DeathTestAbort("Unable to duplicate the pipe handle " +
-                   StreamableToString(write_handle_as_size_t) +
-                   " from the parent process " +
-                   StreamableToString(parent_process_id));
+    DeathTestAbort(String::Format(
+        "Unable to duplicate the pipe handle %Iu from the parent process %u",
+        write_handle_as_size_t, parent_process_id));
   }
 
   const HANDLE event_handle = reinterpret_cast<HANDLE>(event_handle_as_size_t);
@@ -1268,18 +1264,17 @@ int GetStatusFileDescriptor(unsigned int parent_process_id,
                          0x0,
                          FALSE,
                          DUPLICATE_SAME_ACCESS)) {
-    DeathTestAbort("Unable to duplicate the event handle " +
-                   StreamableToString(event_handle_as_size_t) +
-                   " from the parent process " +
-                   StreamableToString(parent_process_id));
+    DeathTestAbort(String::Format(
+        "Unable to duplicate the event handle %Iu from the parent process %u",
+        event_handle_as_size_t, parent_process_id));
   }
 
   const int write_fd =
       ::_open_osfhandle(reinterpret_cast<intptr_t>(dup_write_handle), O_APPEND);
   if (write_fd == -1) {
-    DeathTestAbort("Unable to convert pipe handle " +
-                   StreamableToString(write_handle_as_size_t) +
-                   " to a file descriptor");
+    DeathTestAbort(String::Format(
+        "Unable to convert pipe handle %Iu to a file descriptor",
+        write_handle_as_size_t));
   }
 
   // Signals the parent that the write end of the pipe has been acquired
@@ -1316,8 +1311,9 @@ InternalRunDeathTestFlag* ParseInternalRunDeathTestFlag() {
       || !ParseNaturalNumber(fields[3], &parent_process_id)
       || !ParseNaturalNumber(fields[4], &write_handle_as_size_t)
       || !ParseNaturalNumber(fields[5], &event_handle_as_size_t)) {
-    DeathTestAbort("Bad --gtest_internal_run_death_test flag: " +
-                   GTEST_FLAG(internal_run_death_test));
+    DeathTestAbort(String::Format(
+        "Bad --gtest_internal_run_death_test flag: %s",
+        GTEST_FLAG(internal_run_death_test).c_str()));
   }
   write_fd = GetStatusFileDescriptor(parent_process_id,
                                      write_handle_as_size_t,
@@ -1328,8 +1324,9 @@ InternalRunDeathTestFlag* ParseInternalRunDeathTestFlag() {
       || !ParseNaturalNumber(fields[1], &line)
       || !ParseNaturalNumber(fields[2], &index)
       || !ParseNaturalNumber(fields[3], &write_fd)) {
-    DeathTestAbort("Bad --gtest_internal_run_death_test flag: "
-        + GTEST_FLAG(internal_run_death_test));
+    DeathTestAbort(String::Format(
+        "Bad --gtest_internal_run_death_test flag: %s",
+        GTEST_FLAG(internal_run_death_test).c_str()));
   }
 
 # endif  // GTEST_OS_WINDOWS
